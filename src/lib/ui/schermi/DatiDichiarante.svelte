@@ -1,7 +1,8 @@
 <script lang="ts">
   /** Dati del Dichiarante: in alto il tecnico compilatore (richiamabile dall'elenco dei tecnici), in basso il dichiarante. */
-  import type { Pratica, Tecnico } from '$lib/core/model';
+  import type { Comune, Pratica, Tecnico } from '$lib/core/model';
   import { ALBI_TECNICO } from '$lib/core/regole-docfa';
+  import { capDelComune } from '$lib/core/cap';
   import { impostazioni } from '$lib/stato/impostazioni.svelte';
   import Campo from '../Campo.svelte';
   import ComuneProvincia from '../ComuneProvincia.svelte';
@@ -16,6 +17,16 @@
   }
   let attestazione = $state(false);
   const M = (v: string) => v.toUpperCase();
+
+  // CAP proposti per il comune di residenza: con un solo CAP si compila da sé, con più CAP si sceglie dall'elenco
+  const capProposti = $derived(
+    capDelComune(impostazioni.comuni.find((c) => c.provincia === pratica.dichiarante.provincia && c.nome === pratica.dichiarante.comune)?.codice),
+  );
+  function comuneResidenzaScelto(c: Comune | undefined): void {
+    const elenco = capDelComune(c?.codice);
+    if (elenco.length === 1) pratica.dichiarante.cap = elenco[0];
+    else if (elenco.length > 1 && !elenco.includes(pratica.dichiarante.cap)) pratica.dichiarante.cap = '';
+  }
 </script>
 
 <div class="space-y-5">
@@ -51,8 +62,11 @@
       <Campo etichetta="Nome" obbligatorio><input type="text" class="campo uppercase" maxlength="20" value={pratica.dichiarante.nome} oninput={(e) => (pratica.dichiarante.nome = M(e.currentTarget.value))} /></Campo>
       <Campo etichetta="Indirizzo" obbligatorio><input type="text" class="campo uppercase" maxlength="35" value={pratica.dichiarante.indirizzo} oninput={(e) => (pratica.dichiarante.indirizzo = M(e.currentTarget.value))} /></Campo>
       <Campo etichetta="Numero civico" obbligatorio aiuto="SNC se assente"><input type="text" class="campo uppercase" maxlength="5" value={pratica.dichiarante.civico} oninput={(e) => (pratica.dichiarante.civico = M(e.currentTarget.value.trim()))} /></Campo>
-      <div class="sm:col-span-2"><ComuneProvincia bind:provincia={pratica.dichiarante.provincia} bind:comune={pratica.dichiarante.comune} etichettaComune="Comune di residenza" obbligatorio /></div>
-      <Campo etichetta="C.A.P." obbligatorio><input type="text" class="campo" maxlength="5" inputmode="numeric" value={pratica.dichiarante.cap} oninput={(e) => (pratica.dichiarante.cap = e.currentTarget.value.replace(/\D/g, ''))} /></Campo>
+      <div class="sm:col-span-2"><ComuneProvincia bind:provincia={pratica.dichiarante.provincia} bind:comune={pratica.dichiarante.comune} etichettaComune="Comune di residenza" obbligatorio scelto={comuneResidenzaScelto} /></div>
+      <Campo etichetta="C.A.P." obbligatorio aiuto={capProposti.length > 1 ? "più CAP: scegliere in base all'indirizzo" : undefined}>
+        <input type="text" class="campo" maxlength="5" inputmode="numeric" list="cap-dichiarante" value={pratica.dichiarante.cap} oninput={(e) => (pratica.dichiarante.cap = e.currentTarget.value.replace(/\D/g, ''))} />
+        <datalist id="cap-dichiarante">{#each capProposti as cap (cap)}<option value={cap}></option>{/each}</datalist>
+      </Campo>
       <Campo etichetta="Indirizzo PEC" aiuto="facoltativo"><input type="email" class="campo" maxlength="60" value={pratica.dichiarante.pec ?? ''} oninput={(e) => (pratica.dichiarante.pec = e.currentTarget.value || undefined)} /></Campo>
     </div>
   </Sezione>
